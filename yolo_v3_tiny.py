@@ -10,7 +10,7 @@ _BATCH_NORM_DECAY = 0.9
 _BATCH_NORM_EPSILON = 1e-05
 _LEAKY_RELU = 0.1
 
-_ANCHORS = [(10,14),  (23,27),  (37,58),  (81,82),  (135,169),  (344,319)]
+_ANCHORS = [(10.,14.),  (23.,27.),  (37.,58.),  (81.,82.),  (135.,169.),  (344.,319.)]
 
 def yolo_v3_tiny(inputs, num_classes, is_training=False, data_format='NCHW', reuse=False):
     """

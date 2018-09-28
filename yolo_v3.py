@@ -61,7 +61,7 @@ def _darknet53_block(inputs, filters):
 
 
 @tf.contrib.framework.add_arg_scope
-def _fixed_padding(inputs, kernel_size, *args, mode='CONSTANT', **kwargs):
+def _fixed_padding(inputs, kernel_size, mode='CONSTANT', **kwargs):
     """
     Pads the input along the spatial dimensions independently of input size.
 
@@ -254,7 +254,7 @@ def load_weights(var_list, weights_file):
     :return: list of assign ops
     """
     with open(weights_file, "rb") as fp:
-        _ = np.fromfile(fp, dtype=np.int32, count=5)
+        _ = np.fromfile(fp, dtype=np.int32, count=4)
 
         weights = np.fromfile(fp, dtype=np.float32)
 
@@ -289,21 +289,22 @@ def load_weights(var_list, weights_file):
                 ptr += bias_params
                 assign_ops.append(tf.assign(bias, bias_weights, validate_shape=True))
 
-                # we loaded 1 variable
+                # we loaded 2 variables
                 i += 1
             # we can load weights of conv layer
             shape = var1.shape.as_list()
             num_params = np.prod(shape)
-
-            var_weights = weights[ptr:ptr + num_params].reshape((shape[3], shape[2], shape[0], shape[1]))
+            print(shape)
+            var_weights = weights[ptr:ptr + num_params].reshape(
+                (shape[3], shape[2], shape[0], shape[1]))
             # remember to transpose to column-major
             var_weights = np.transpose(var_weights, (2, 3, 1, 0))
+            # var_weights = np.transpose(var_weights, (1, 2, 3, 0))
             ptr += num_params
             assign_ops.append(tf.assign(var1, var_weights, validate_shape=True))
             i += 1
 
     return assign_ops
-
 
 def detections_boxes(detections):
     """

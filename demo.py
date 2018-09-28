@@ -5,6 +5,7 @@ import tensorflow as tf
 from PIL import Image, ImageDraw
 
 from yolo_v3 import yolo_v3, load_weights, detections_boxes, non_max_suppression
+from yolo_v3_tiny import yolo_v3_tiny
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -62,8 +63,14 @@ def main(argv=None):
     with tf.Session() as sess:
         sess.run(load_ops)
 
-        detected_boxes = sess.run(boxes, feed_dict={inputs: [np.array(img_resized, dtype=np.float32)]})
-
+        from time import time
+        tic = time()
+        detected_boxes = sess.run(
+            boxes,
+            feed_dict={inputs: [np.array(img_resized, dtype=np.float32)]}
+        )
+        toc = time()
+        print('Time take : ', toc-tic)
     filtered_boxes = non_max_suppression(detected_boxes, confidence_threshold=FLAGS.conf_threshold,
                                          iou_threshold=FLAGS.iou_threshold)
 
