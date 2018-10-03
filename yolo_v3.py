@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from collections import defaultdict
 
 import numpy as np
 import tensorflow as tf
@@ -10,6 +11,7 @@ _BATCH_NORM_EPSILON = 1e-05
 _LEAKY_RELU = 0.1
 
 _ANCHORS = [(10, 13), (16, 30), (33, 23), (30, 61), (62, 45), (59, 119), (116, 90), (156, 198), (373, 326)]
+_ANCHORS =[(float(x), float(y)) for x, y in _ANCHORS]
 
 
 def darknet53(inputs):
@@ -49,6 +51,7 @@ def _conv2d_fixed_padding(inputs, filters, kernel_size, strides=1):
         inputs = _fixed_padding(inputs, kernel_size)
     inputs = slim.conv2d(inputs, filters, kernel_size, stride=strides, padding=('SAME' if strides == 1 else 'VALID'))
     return inputs
+
 
 
 def _darknet53_block(inputs, filters):
@@ -253,10 +256,12 @@ def load_weights(var_list, weights_file):
     :param weights_file: name of the binary file.
     :return: list of assign ops
     """
+
     with open(weights_file, "rb") as fp:
         _ = np.fromfile(fp, dtype=np.int32, count=4)
 
         weights = np.fromfile(fp, dtype=np.float32)
+
 
     ptr = 0
     i = 0
@@ -265,9 +270,9 @@ def load_weights(var_list, weights_file):
         var1 = var_list[i]
         var2 = var_list[i + 1]
         # do something only if we process conv layer
-        if 'Conv' in var1.name.split('/')[-2]:
+        if 'conv2d' in var1.name.split('/')[-2]:
             # check type of next layer
-            if 'BatchNorm' in var2.name.split('/')[-2]:
+            if 'batch_normalization' in var2.name.split('/')[-2]:
                 # load batch norm params
                 gamma, beta, mean, var = var_list[i + 1:i + 5]
                 batch_norm_vars = [beta, gamma, mean, var]
@@ -280,7 +285,7 @@ def load_weights(var_list, weights_file):
 
                 # we move the pointer by 4, because we loaded 4 variables
                 i += 4
-            elif 'Conv' in var2.name.split('/')[-2]:
+            elif 'conv2d' in var2.name.split('/')[-2]:
                 # load biases
                 bias = var2
                 bias_shape = bias.shape.as_list()
@@ -294,7 +299,6 @@ def load_weights(var_list, weights_file):
             # we can load weights of conv layer
             shape = var1.shape.as_list()
             num_params = np.prod(shape)
-            print(shape)
             var_weights = weights[ptr:ptr + num_params].reshape(
                 (shape[3], shape[2], shape[0], shape[1]))
             # remember to transpose to column-major
@@ -329,7 +333,7 @@ def detections_boxes(detections):
 def _iou(box1, box2):
     """
     Computes Intersection over Union value for 2 bounding boxes
-    
+
     :param box1: array of 4 values (top left and bottom right coords): [x0, y0, x1, x2]
     :param box2: same as box1
     :return: IoU
@@ -342,7 +346,8 @@ def _iou(box1, box2):
     int_x1 = min(b1_x1, b2_x1)
     int_y1 = min(b1_y1, b2_y1)
 
-    int_area = (int_x1 - int_x0) * (int_y1 - int_y0)
+    int_area = max((int_x1 - int_x0), 0) *\
+               max((int_y1 - int_y0), 0)
 
     b1_area = (b1_x1 - b1_x0) * (b1_y1 - b1_y0)
     b2_area = (b2_x1 - b2_x0) * (b2_y1 - b2_y0)
@@ -364,7 +369,7 @@ def non_max_suppression(predictions_with_boxes, confidence_threshold, iou_thresh
     conf_mask = np.expand_dims((predictions_with_boxes[:, :, 4] > confidence_threshold), -1)
     predictions = predictions_with_boxes * conf_mask
 
-    result = {}
+    result = defaultdict(list)
     for i, image_pred in enumerate(predictions):
         shape = image_pred.shape
         non_zero_idxs = np.nonzero(image_pred)
@@ -395,6 +400,9 @@ def non_max_suppression(predictions_with_boxes, confidence_threshold, iou_thresh
                 iou_mask = ious < iou_threshold
                 cls_boxes = cls_boxes[np.nonzero(iou_mask)]
                 cls_scores = cls_scores[np.nonzero(iou_mask)]
+
+
+
 
     return result
 

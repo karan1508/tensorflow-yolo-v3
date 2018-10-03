@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 
+import sys
+import logging
+
 import numpy as np
 import tensorflow as tf
 from PIL import Image, ImageDraw
 
 from yolo_v3 import yolo_v3, load_weights, detections_boxes, non_max_suppression
 from yolo_v3_tiny import yolo_v3_tiny
+
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -36,16 +40,20 @@ def draw_boxes(boxes, img, cls_names, detection_size):
         for box, score in bboxs:
             box = convert_to_original_size(box, np.array(detection_size), np.array(img.size))
             draw.rectangle(box, outline=color)
-            draw.text(box[:2], '{} {:.2f}%'.format(cls_names[cls], score * 100), fill=color)
+            # draw.text(box[:2], '{} {:.2f}%'.format(cls_names[cls], score * 100), fill=color)
 
 
 def convert_to_original_size(box, size, original_size):
-    ratio = original_size / size
+    ratio = original_size / size.astype(np.float)
     box = box.reshape(2, 2) * ratio
     return list(box.reshape(-1))
 
 
 def main(argv=None):
+    logger = logging.getLogger(__name__ + ".main")
+    logger.addHandler(logging.StreamHandler(sys.stdout))
+    logger.setLevel(logging.INFO)
+
     img = Image.open(FLAGS.input_img)
     img_resized = img.resize(size=(FLAGS.size, FLAGS.size))
 
@@ -55,7 +63,7 @@ def main(argv=None):
     inputs = tf.placeholder(tf.float32, [None, FLAGS.size, FLAGS.size, 3])
 
     with tf.variable_scope('detector'):
-        detections = yolo_v3(inputs, len(classes), data_format='NCHW')
+        detections = yolo_v3_tiny(inputs, len(classes), data_format='NHWC')
         load_ops = load_weights(tf.global_variables(scope='detector'), FLAGS.weights_file)
 
     boxes = detections_boxes(detections)
@@ -64,13 +72,20 @@ def main(argv=None):
         sess.run(load_ops)
 
         from time import time
+        # import cv2
+        # image = cv2.imread(FLAGS.input_img)
+        # img_resized = cv2.resize(image, (416, 416))
         tic = time()
         detected_boxes = sess.run(
             boxes,
-            feed_dict={inputs: [np.array(img_resized, dtype=np.float32)]}
+            feed_dict={
+                inputs: [np.array(img_resized, dtype=np.float32)]
+                # inputs: [img_resized.astype(np.float)]
+            }
         )
         toc = time()
-        print('Time take : ', toc-tic)
+        logger.info('Time taken : %s', toc-tic)
+
     filtered_boxes = non_max_suppression(detected_boxes, confidence_threshold=FLAGS.conf_threshold,
                                          iou_threshold=FLAGS.iou_threshold)
 
